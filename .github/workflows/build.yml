@@ -1,4 +1,5 @@
 
+
 name: Build OX Windows VST3
 
 on:
@@ -10,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout source code
@@ -20,37 +21,33 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "CMakeLists.txt")) {
-            throw "CMakeLists.txt was not found in the repository root."
+            throw "CMakeLists.txt not found in repository root."
           }
 
       - name: Configure CMake
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        run: cmake -S . -B build -A x64
 
       - name: Build OX
         run: cmake --build build --config Release --parallel
 
-      - name: Find and package VST3
+      - name: Locate VST3 plugin
         shell: pwsh
         run: |
-          $plugin = Get-ChildItem -Path "build" `
-            -Directory -Recurse -Filter "OX.vst3" |
+          $plugin = Get-ChildItem "build" -Recurse -Directory -Filter "OX.vst3" |
             Select-Object -First 1
 
-          if ($null -eq $plugin) {
-            throw "OX.vst3 was not found. Check the plugin name and CMake output."
+          if (!$plugin) {
+            throw "OX.vst3 not found. Check the build output and plugin target name."
           }
 
           New-Item -ItemType Directory -Force -Path "package" | Out-Null
+          Copy-Item $plugin.FullName "package/OX.vst3" -Recurse -Force
 
-          Copy-Item -Path $plugin.FullName `
-            -Destination "package/OX.vst3" -Recurse -Force
-
-          Write-Host "Packaged plugin: package/OX.vst3"
-
-      - name: Upload Windows VST3
+      - name: Upload VST3 artifact
         uses: actions/upload-artifact@v4
         with:
           name: OX-VST3-Windows
           path: package/OX.vst3/
           if-no-files-found: error
           retention-days: 14
+          
