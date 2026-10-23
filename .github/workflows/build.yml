@@ -1,0 +1,56 @@
+
+name: Build OX Windows VST3
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Check project files
+        shell: pwsh
+        run: |
+          if (!(Test-Path "CMakeLists.txt")) {
+            throw "CMakeLists.txt was not found in the repository root."
+          }
+
+      - name: Configure CMake
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build OX
+        run: cmake --build build --config Release --parallel
+
+      - name: Find and package VST3
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path "build" `
+            -Directory -Recurse -Filter "OX.vst3" |
+            Select-Object -First 1
+
+          if ($null -eq $plugin) {
+            throw "OX.vst3 was not found. Check the plugin name and CMake output."
+          }
+
+          New-Item -ItemType Directory -Force -Path "package" | Out-Null
+
+          Copy-Item -Path $plugin.FullName `
+            -Destination "package/OX.vst3" -Recurse -Force
+
+          Write-Host "Packaged plugin: package/OX.vst3"
+
+      - name: Upload Windows VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: OX-VST3-Windows
+          path: package/OX.vst3/
+          if-no-files-found: error
+          retention-days: 14
